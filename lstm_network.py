@@ -3,37 +3,36 @@ import numpy as np
 import load as ld
 
 
-def Birnn(x,dropout,sequence_length,scope,reuse,isTraining):
+def Birnn(x,dropout,sequence_length,scope,isTraining):
     layers=3
 
-    with tf.name_scope("fw" + scope), tf.variable_scope("fw" + scope,reuse=reuse):
+    with tf.name_scope("fw" + scope), tf.variable_scope("fw" + scope):
         fw_cell = tf.nn.rnn_cell.BasicLSTMCell(sequence_length, forget_bias=1.0, state_is_tuple=True)
-        if(isTraining):
+        if(isTraining is True):
             lstm_fw_cell = tf.nn.rnn_cell.DropoutWrapper(fw_cell, output_keep_prob=dropout)
             lstm_fw_cell_m = tf.nn.rnn_cell.MultiRNNCell([lstm_fw_cell] * layers, state_is_tuple=True)
         else:
             lstm_fw_cell_m = tf.nn.rnn_cell.MultiRNNCell([fw_cell] * layers, state_is_tuple=True)
 
 
-    with tf.name_scope("bw" + scope), tf.variable_scope("bw" + scope,reuse=reuse):
+    with tf.name_scope("bw" + scope), tf.variable_scope("bw" + scope):
         bw_cell = tf.nn.rnn_cell.BasicLSTMCell(sequence_length, forget_bias=1.0, state_is_tuple=True)
-        if(isTraining):
+        if(isTraining is True):
             lstm_bw_cell = tf.nn.rnn_cell.DropoutWrapper(bw_cell, output_keep_prob=dropout)
             lstm_bw_cell_m = tf.nn.rnn_cell.MultiRNNCell([lstm_bw_cell] * layers, state_is_tuple=True)
         else:
             lstm_bw_cell_m = tf.nn.rnn_cell.MultiRNNCell([bw_cell] * layers, state_is_tuple=True)
 
 
-    with tf.name_scope("bw" + scope), tf.variable_scope("bw" + scope,reuse=reuse):
+    with tf.name_scope("bw" + scope), tf.variable_scope("bw" + scope):
             outputs, _= tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, x, dtype=tf.float32)
 
     return outputs[-1]
 
 
-x1=tf.placeholder(dtype=tf.float32)
-x2=tf.placeholder(dtype=tf.float32)
-reuse=tf.placeholder(shape=[1],dtype=tf.bool)
-isTraining=tf.placeholder(shape=[1],dtype=tf.bool)
+x1=tf.placeholder(shape=[1,None,256],dtype=tf.float32)
+x2=tf.placeholder(shape=[1,None,256],dtype=tf.float32)
+isTraining=tf.placeholder(dtype=tf.bool)
 
 
 
@@ -85,11 +84,12 @@ with open("/media/ada/软件/BaiduNetdiskDownload/ieee_zhihu_cup/ieee_zhihu_cup/
         question_ct_embedding=np.mat(question_ct_embedding,dtype=np.float32)
         question_ct_embedding=np.resize(question_ct_embedding,(1,-1,256))
 
-        if(question_id=="6555699376639805223" and topic_=="7739004195693774975"):
-            out1=Birnn(x1,0.5,256,"ct",False,isTraining)
-        else:
-            out1 = Birnn(x1, 0.5, 256, "ct", True, isTraining)
-        out2=Birnn(x2,0.5,256,"ct",True,isTraining)
+        out1 = Birnn(x1, 0.5, 256, "side1", isTraining)
+        out2 = Birnn(x2, 0.5, 256, "side2", isTraining)
+        print(question_ct_embedding)
+        print(question_ct_embedding.shape)
+        print(topic_ct_embedding)
+        print(topic_ct_embedding.shape)
         '''
         distance1 = tf.sqrt(tf.reduce_sum(tf.square(tf.subtract(out1, out2)), 1, keep_dims=True))
         distance2 = tf.div(distance1, tf.add(tf.sqrt(tf.reduce_sum(tf.square(out1), 1, keep_dims=True)),tf.sqrt(tf.reduce_sum(tf.square(out2), 1, keep_dims=True))))
@@ -98,6 +98,7 @@ with open("/media/ada/软件/BaiduNetdiskDownload/ieee_zhihu_cup/ieee_zhihu_cup/
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             a,b=sess.run([out1,out2],feed_dict={x1:question_ct_embedding,x2:topic_ct_embedding,isTraining:True})
+
             print(a.shape)
             print(" b:")
             print(b.shape)

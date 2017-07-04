@@ -3,9 +3,14 @@ import numpy as np
 import load as ld
 
 
-def Birnn(x,dropout,sequence_length,scope,isTraining):
+def Birnn(x,dropout,sequence_length,scope,isTraining,reuse):
+    '''
     layers=3
-
+    x = tf.transpose(x, [1, 0, 2])
+    # Reshape to (n_steps*batch_size, n_input)
+    x = tf.reshape(x, [-1, 256])
+    # Split to get a list of 'n_steps' tensors of shape (batch_size, n_input)
+    x = tf.split(x, 256)
     with tf.name_scope("fw" + scope), tf.variable_scope("fw" + scope):
         fw_cell = tf.nn.rnn_cell.BasicLSTMCell(sequence_length, forget_bias=1.0, state_is_tuple=True)
         if(isTraining is True):
@@ -25,9 +30,28 @@ def Birnn(x,dropout,sequence_length,scope,isTraining):
 
 
     with tf.name_scope("bw" + scope), tf.variable_scope("bw" + scope):
-            outputs, _= tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, x, dtype=tf.float32)
+            outputs, final_state= tf.contrib.rnn(lstm_fw_cell_m, x)
 
     return outputs[-1]
+
+    with tf.variable_scope(scope):
+        cell=tf.contrib.rnn.BasicLSTMCell(256)
+        cell=tf.contrib.rnn.MultiRNNCell([cell]*layers,)
+        initial_state=cell.zero_state(1,tf.float32)
+        outputs, last_state = tf.nn.dynamic_rnn(cell, x, initial_state=initial_state)
+    return outputs
+    '''
+    layers=3
+    with tf.name_scope("fw" + scope), tf.variable_scope("fw" + scope):
+        fw_cell = tf.nn.rnn_cell.BasicLSTMCell(sequence_length, forget_bias=1.0, state_is_tuple=True,reuse=reuse)
+        if (isTraining is True):
+            fw_cell = tf.nn.rnn_cell.DropoutWrapper(fw_cell, output_keep_prob=dropout)
+        lstm_fw_cell_m = tf.nn.rnn_cell.MultiRNNCell([fw_cell] * layers, state_is_tuple=True)
+
+        outputs,_=tf.nn.dynamic_rnn(lstm_fw_cell_m,x,dtype=tf.float32)
+
+    return outputs
+
 
 
 x1=tf.placeholder(shape=[1,None,256],dtype=tf.float32)
@@ -84,12 +108,13 @@ with open("/media/ada/软件/BaiduNetdiskDownload/ieee_zhihu_cup/ieee_zhihu_cup/
         question_ct_embedding=np.mat(question_ct_embedding,dtype=np.float32)
         question_ct_embedding=np.resize(question_ct_embedding,(1,-1,256))
 
-        out1 = Birnn(x1, 0.5, 256, "side1", isTraining)
-        out2 = Birnn(x2, 0.5, 256, "side2", isTraining)
-        print(question_ct_embedding)
-        print(question_ct_embedding.shape)
-        print(topic_ct_embedding)
-        print(topic_ct_embedding.shape)
+        if(question_id=="6555699376639805223" and topic_=="7739004195693774975"):
+            out1 = Birnn(x1, 0.5, 256, "side1", isTraining,False)
+        else:
+            out1 = Birnn(x1, 0.5, 256, "side1", isTraining, True)
+        out2 = Birnn(x2, 0.5, 256, "side1", isTraining,True)
+
+
         '''
         distance1 = tf.sqrt(tf.reduce_sum(tf.square(tf.subtract(out1, out2)), 1, keep_dims=True))
         distance2 = tf.div(distance1, tf.add(tf.sqrt(tf.reduce_sum(tf.square(out1), 1, keep_dims=True)),tf.sqrt(tf.reduce_sum(tf.square(out2), 1, keep_dims=True))))
@@ -99,6 +124,3 @@ with open("/media/ada/软件/BaiduNetdiskDownload/ieee_zhihu_cup/ieee_zhihu_cup/
             sess.run(tf.global_variables_initializer())
             a,b=sess.run([out1,out2],feed_dict={x1:question_ct_embedding,x2:topic_ct_embedding,isTraining:True})
 
-            print(a.shape)
-            print(" b:")
-            print(b.shape)

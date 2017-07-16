@@ -58,6 +58,7 @@ class Model():
             softmax_b = tf.get_variable('b', [args.label_size])
             logits = tf.matmul(outputs[-1], softmax_w) + softmax_b
             self.probs = tf.nn.softmax(logits)
+            print(self.probs)
         # self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, self.targets))  # Softmax loss
 
         self.cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.targets, logits=logits))  # Softmax loss
@@ -87,6 +88,6 @@ class Model():
         state = self.cell.zero_state(len(text), tf.float32)
         feed = {self.input_data: x}
         probs, state = sess.run([self.probs, self.final_state], feed_dict=feed)
-
-        results = np.argmax(probs,1)
+        results=probs
+        #results = np.argmax(probs,1)
         return results

@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os, sys
-import time
 import argparse
 
 import numpy as np
@@ -21,8 +19,6 @@ def main():
     parser.add_argument('--model', type=str, default='lstm',
                         help='rnn, gru, lstm or bn-lstm, default lstm')
 
-    parser.add_argument('--bn_level', type=int, default=1,
-                        help='if model is bn-lstm, enable sequence-wise batch normalization with different level')
 
     parser.add_argument('--rnn_size', type=int, default=256,
                         help='size of RNN hidden state')
@@ -36,16 +32,13 @@ def main():
     parser.add_argument('--seq_length', type=int, default=40,
                         help='RNN sequence length')
 
-    parser.add_argument('--num_epochs', type=int, default=100,
-                        help='number of epochs')
-
-    parser.add_argument('--learning_rate', type=float, default=0.0001,
+    parser.add_argument('--learning_rate', type=float, default=0.001,
                         help='learning rate')
 
     parser.add_argument('--decay_rate', type=float, default=0.8,
                         help='decay rate for rmsprop')
 
-    parser.add_argument('--init_from', type=str, default="./data_2/",
+    parser.add_argument('--init_from', type=str, default=None,
                         help='''continue training from saved model at this path. Path must contain files saved by previous training process:
                         'config.pkl'         : configuration;
                         'checkpoint'         : paths to model file(s) (created by tensorflow).
@@ -58,8 +51,6 @@ def main():
 
 def train(args):
     char_embedding = ld.load_char_embedding()
-    args.vocab_size = char_embedding.shape[0]
-
     global ckpt
     if args.init_from is not None:
         ckpt = tf.train.get_checkpoint_state(args.init_from)
@@ -83,8 +74,6 @@ def train(args):
         if args.init_from is not None:
             saver.restore(sess, ckpt.model_checkpoint_path)
 
-
-
         x_ = []
         y_ = []
         temp = []
@@ -102,7 +91,7 @@ def train(args):
                 question_topic = f.readline().strip("\n").split("\t")
                 num+=1
 
-                if(num==500000):
+                if(num==1000000):
                    break
 
                 question_id = question_topic[0]
@@ -164,11 +153,10 @@ def train(args):
                 if(len(x_)==args.batch_size):
                     print(num)
                     x, y = x_, y_
-                    e = num / 32 +100000
-                    sess.run(tf.assign(model.lr, args.learning_rate * (args.decay_rate ** e)))
-                    feed = {model.input_data: x, model.targets: y}
+                    e = (num) / 32
+                    #sess.run(tf.assign(model.lr, args.learning_rate * (args.decay_rate ** e)))
+                    feed = {model.input_data: x, model.targets: y ,model.dropout:0.5,model.lr: args.learning_rate * (args.decay_rate ** e)}
                     for i in range(3):
-                        #start = time.time()
                         train_loss, state, _, accuracy = sess.run([model.cost, model.final_state, model.optimizer, model.accuracy], feed_dict=feed)
                         print(train_loss,accuracy)
                     print("prediction:", model.predict_class(sess, x_))
